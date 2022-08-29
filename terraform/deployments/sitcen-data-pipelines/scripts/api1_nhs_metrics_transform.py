@@ -1,0 +1,90 @@
+import sys
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.job import Job
+from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql.functions import *
+
+## @params: [JOB_NAME]
+args = getResolvedOptions(sys.argv, ["JOB_NAME", "LANDING_DATABASE", "DATA_REPOSITORY_DATABASE", "TABLE_NAME"])
+#args = getResolvedOptions(sys.argv, ["JOB_NAME", "LANDING_DATABASE", "DATA_REPOSITORY_DATABASE", "TABLE_NAME","DATA_REPOSITORY_ERROR"])
+
+
+nhs_region_names=["London",
+               "North East and Yorkshire",
+               "North West",
+               "Midlands",
+               "East of England",
+               "South East",
+               "South West",
+               "England"]
+
+
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+job = Job(glueContext)
+job.init(args['JOB_NAME'], args)
+
+sc.setLogLevel("ALL")
+logger = glueContext.get_logger()
+logger.info("Logging==========")
+
+## @type: DataSource
+## @args: [database = "dsi-landing", table_name = "api1_nhs_metrics", transformation_ctx = "datasource0"]
+## @return: datasource0
+## @inputs: []
+datasource0 = glueContext.create_dynamic_frame.from_catalog(database = "dsi-landing", table_name = "api1_nhs_metrics", transformation_ctx = "datasource0")
+## @type: ApplyMapping
+## @args: [mapping = [("estimated_admissions_automated_0_5", "double", "estimated_admissions_automated_0_5", "double"), ("estimated_admissions_automated_6_17", "double", "estimated_admissions_automated_6_17", "double"), ("estimated_admissions_automated_18_64", "double", "estimated_admissions_automated_18_64", "double"), ("estimated_admissions_automated_65_84", "double", "estimated_admissions_automated_65_84", "double"), ("estimated_admissions_automated_85_plus", "double", "estimated_admissions_automated_85_plus", "double"), ("estimated_admissions_automated_total", "double", "estimated_admissions_automated_total", "double"), ("estimated_admissions_automated_unknown", "double", "estimated_admissions_automated_unknown", "double"), ("covid_patients_unknown", "double", "covid_patients_unknown", "double"), ("covid_patients_total", "double", "covid_patients_total", "double"), ("covid_patients_0_5", "double", "covid_patients_0_5", "double"), ("covid_patients_6_17", "double", "covid_patients_6_17", "double"), ("covid_patients_18_24", "double", "covid_patients_18_24", "double"), ("covid_patients_25_34", "double", "covid_patients_25_34", "double"), ("covid_patients_35_44", "double", "covid_patients_35_44", "double"), ("covid_patients_45_54", "double", "covid_patients_45_54", "double"), ("covid_patients_55_64", "double", "covid_patients_55_64", "double"), ("covid_patients_65_74", "double", "covid_patients_65_74", "double"), ("covid_patients_75_84", "double", "covid_patients_75_84", "double"), ("covid_patients_85_plus", "double", "covid_patients_85_plus", "double"), ("mv_covid_patients_unknown", "double", "mv_covid_patients_unknown", "double"), ("mv_covid_patients_total", "double", "mv_covid_patients_total", "double"), ("mv_covid_patients_0_5", "double", "mv_covid_patients_0_5", "double"), ("mv_covid_patients_6_17", "double", "mv_covid_patients_6_17", "double"), ("mv_covid_patients_18_24", "double", "mv_covid_patients_18_24", "double"), ("mv_covid_patients_25_34", "double", "mv_covid_patients_25_34", "double"), ("mv_covid_patients_35_44", "double", "mv_covid_patients_35_44", "double"), ("mv_covid_patients_45_54", "double", "mv_covid_patients_45_54", "double"), ("mv_covid_patients_55_64", "double", "mv_covid_patients_55_64", "double"), ("mv_covid_patients_65_74", "double", "mv_covid_patients_65_74", "double"), ("mv_covid_patients_75_84", "double", "mv_covid_patients_75_84", "double"), ("mv_covid_patients_85_plus", "double", "mv_covid_patients_85_plus", "double"), ("date", "date", "date", "date"), ("region", "string", "region", "string"), ("source", "string", "source", "string"), ("o_covid", "double", "o_covid", "double"), ("o_non_covid", "double", "o_non_covid", "double"), ("o_unoccupied", "double", "o_unoccupied", "double"), ("o_plus_covid", "double", "o_plus_covid", "double"), ("o_plus_non_covid", "double", "o_plus_non_covid", "double"), ("o_plus_unoccupied", "double", "o_plus_unoccupied", "double"), ("v_covid", "double", "v_covid", "double"), ("v_non_covid", "double", "v_non_covid", "double"), ("v_unoccupied", "double", "v_unoccupied", "double"), ("discharges", "double", "discharges", "double"), ("admissions", "double", "admissions", "double"), ("diagnosed", "double", "diagnosed", "double"), ("deaths", "double", "deaths", "double"), ("deaths_0_to_19", "double", "deaths_0_to_19", "double"), ("deaths_20_to_39", "double", "deaths_20_to_39", "double"), ("deaths_40_to_59", "double", "deaths_40_to_59", "double"), ("deaths_60_to_79", "double", "deaths_60_to_79", "double"), ("deaths_80", "double", "deaths_80", "double"), ("total_patients_in_ac_type_one", "double", "total_patients_in_ac_type_one", "double"), ("covid_patients_in_ac_type_one", "double", "covid_patients_in_ac_type_one", "double"), ("hdu_itu_covid", "double", "hdu_itu_covid", "double"), ("estimated_admissions", "string", "estimated_admissions", "string"), ("deaths_nhs_staff_verified", "double", "deaths_nhs_staff_verified", "double"), ("deaths_nhs_staff_awaiting", "double", "deaths_nhs_staff_awaiting", "double"), ("all_beds_covid_positive", "double", "all_beds_covid_positive", "double"), ("hdu_itu_non_covid", "double", "hdu_itu_non_covid", "double"), ("hdu_itu_unoccupied", "double", "hdu_itu_unoccupied", "double"), ("ga_covid", "double", "ga_covid", "double"), ("ga_unoccupied", "double", "ga_unoccupied", "double"), ("ga_non_covid", "double", "ga_non_covid", "double"), ("absent_doctors_ac_type_one", "double", "absent_doctors_ac_type_one", "double"), ("absent_doctors_covid_ac_type_one", "double", "absent_doctors_covid_ac_type_one", "double"), ("absent_nurses_ac_type_one", "double", "absent_nurses_ac_type_one", "double"), ("absent_nurses_covid_ac_type_one", "double", "absent_nurses_covid_ac_type_one", "double"), ("absent_covid_ac_type_one", "double", "absent_covid_ac_type_one", "double"), ("absent_total_ac_type_one", "double", "absent_total_ac_type_one", "double"), ("estimated_admissions_automated", "double", "estimated_admissions_automated", "double"), ("new_community_admissions", "double", "new_community_admissions", "double"), ("new_community_admissions_7_lag", "double", "new_community_admissions_7_lag", "double"), ("new_cases", "double", "new_cases", "double"), ("estimated_admissions_care_home", "double", "estimated_admissions_care_home", "double"), ("f_date", "string", "f_date", "string")], transformation_ctx = "applymapping1"]
+## @return: applymapping1
+## @inputs: [frame = datasource0]
+applymapping1 = ApplyMapping.apply(frame = datasource0, mappings = [("estimated_admissions_automated_0_5", "double", "estimated_admissions_automated_0_5", "double"), ("estimated_admissions_automated_6_17", "double", "estimated_admissions_automated_6_17", "double"), ("estimated_admissions_automated_18_64", "double", "estimated_admissions_automated_18_64", "double"), ("estimated_admissions_automated_65_84", "double", "estimated_admissions_automated_65_84", "double"), ("estimated_admissions_automated_85_plus", "double", "estimated_admissions_automated_85_plus", "double"), ("estimated_admissions_automated_total", "double", "estimated_admissions_automated_total", "double"), ("estimated_admissions_automated_unknown", "double", "estimated_admissions_automated_unknown", "double"), ("covid_patients_unknown", "double", "covid_patients_unknown", "double"), ("covid_patients_total", "double", "covid_patients_total", "double"), ("covid_patients_0_5", "double", "covid_patients_0_5", "double"), ("covid_patients_6_17", "double", "covid_patients_6_17", "double"), ("covid_patients_18_24", "double", "covid_patients_18_24", "double"), ("covid_patients_25_34", "double", "covid_patients_25_34", "double"), ("covid_patients_35_44", "double", "covid_patients_35_44", "double"), ("covid_patients_45_54", "double", "covid_patients_45_54", "double"), ("covid_patients_55_64", "double", "covid_patients_55_64", "double"), ("covid_patients_65_74", "double", "covid_patients_65_74", "double"), ("covid_patients_75_84", "double", "covid_patients_75_84", "double"), ("covid_patients_85_plus", "double", "covid_patients_85_plus", "double"), ("mv_covid_patients_unknown", "double", "mv_covid_patients_unknown", "double"), ("mv_covid_patients_total", "double", "mv_covid_patients_total", "double"), ("mv_covid_patients_0_5", "double", "mv_covid_patients_0_5", "double"), ("mv_covid_patients_6_17", "double", "mv_covid_patients_6_17", "double"), ("mv_covid_patients_18_24", "double", "mv_covid_patients_18_24", "double"), ("mv_covid_patients_25_34", "double", "mv_covid_patients_25_34", "double"), ("mv_covid_patients_35_44", "double", "mv_covid_patients_35_44", "double"), ("mv_covid_patients_45_54", "double", "mv_covid_patients_45_54", "double"), ("mv_covid_patients_55_64", "double", "mv_covid_patients_55_64", "double"), ("mv_covid_patients_65_74", "double", "mv_covid_patients_65_74", "double"), ("mv_covid_patients_75_84", "double", "mv_covid_patients_75_84", "double"), ("mv_covid_patients_85_plus", "double", "mv_covid_patients_85_plus", "double"), ("date", "date", "date", "date"), ("region", "string", "region", "string"), ("source", "string", "source", "string"), ("o_covid", "double", "o_covid", "double"), ("o_non_covid", "double", "o_non_covid", "double"), ("o_unoccupied", "double", "o_unoccupied", "double"), ("o_plus_covid", "double", "o_plus_covid", "double"), ("o_plus_non_covid", "double", "o_plus_non_covid", "double"), ("o_plus_unoccupied", "double", "o_plus_unoccupied", "double"), ("v_covid", "double", "v_covid", "double"), ("v_non_covid", "double", "v_non_covid", "double"), ("v_unoccupied", "double", "v_unoccupied", "double"), ("discharges", "double", "discharges", "double"), ("admissions", "double", "admissions", "double"), ("diagnosed", "double", "diagnosed", "double"), ("deaths", "double", "deaths", "double"), ("deaths_0_to_19", "double", "deaths_0_to_19", "double"), ("deaths_20_to_39", "double", "deaths_20_to_39", "double"), ("deaths_40_to_59", "double", "deaths_40_to_59", "double"), ("deaths_60_to_79", "double", "deaths_60_to_79", "double"), ("deaths_80", "double", "deaths_80", "double"), ("total_patients_in_ac_type_one", "double", "total_patients_in_ac_type_one", "double"), ("covid_patients_in_ac_type_one", "double", "covid_patients_in_ac_type_one", "double"), ("hdu_itu_covid", "double", "hdu_itu_covid", "double"), ("estimated_admissions", "string", "estimated_admissions", "string"), ("deaths_nhs_staff_verified", "double", "deaths_nhs_staff_verified", "double"), ("deaths_nhs_staff_awaiting", "double", "deaths_nhs_staff_awaiting", "double"), ("all_beds_covid_positive", "double", "all_beds_covid_positive", "double"), ("hdu_itu_non_covid", "double", "hdu_itu_non_covid", "double"), ("hdu_itu_unoccupied", "double", "hdu_itu_unoccupied", "double"), ("ga_covid", "double", "ga_covid", "double"), ("ga_unoccupied", "double", "ga_unoccupied", "double"), ("ga_non_covid", "double", "ga_non_covid", "double"), ("absent_doctors_ac_type_one", "double", "absent_doctors_ac_type_one", "double"), ("absent_doctors_covid_ac_type_one", "double", "absent_doctors_covid_ac_type_one", "double"), ("absent_nurses_ac_type_one", "double", "absent_nurses_ac_type_one", "double"), ("absent_nurses_covid_ac_type_one", "double", "absent_nurses_covid_ac_type_one", "double"), ("absent_covid_ac_type_one", "double", "absent_covid_ac_type_one", "double"), ("absent_total_ac_type_one", "double", "absent_total_ac_type_one", "double"), ("estimated_admissions_automated", "double", "estimated_admissions_automated", "double"), ("new_community_admissions", "double", "new_community_admissions", "double"), ("new_community_admissions_7_lag", "double", "new_community_admissions_7_lag", "double"), ("new_cases", "double", "new_cases", "double"), ("estimated_admissions_care_home", "double", "estimated_admissions_care_home", "double"), ("f_date", "string", "f_date", "string")], transformation_ctx = "applymapping1")
+## @type: SelectFields
+## @args: [paths = ["estimated_admissions_automated_0_5", "estimated_admissions_automated_6_17", "estimated_admissions_automated_18_64", "estimated_admissions_automated_65_84", "estimated_admissions_automated_85_plus", "estimated_admissions_automated_total", "estimated_admissions_automated_unknown", "covid_patients_unknown", "covid_patients_total", "covid_patients_0_5", "covid_patients_6_17", "covid_patients_18_24", "covid_patients_25_34", "covid_patients_35_44", "covid_patients_45_54", "covid_patients_55_64", "covid_patients_65_74", "covid_patients_75_84", "covid_patients_85_plus", "mv_covid_patients_unknown", "mv_covid_patients_total", "mv_covid_patients_0_5", "mv_covid_patients_6_17", "mv_covid_patients_18_24", "mv_covid_patients_25_34", "mv_covid_patients_35_44", "mv_covid_patients_45_54", "mv_covid_patients_55_64", "mv_covid_patients_65_74", "mv_covid_patients_75_84", "mv_covid_patients_85_plus", "date", "region", "source", "o_covid", "o_non_covid", "o_unoccupied", "o_plus_covid", "o_plus_non_covid", "o_plus_unoccupied", "v_covid", "v_non_covid", "v_unoccupied", "discharges", "admissions", "diagnosed", "deaths", "deaths_0_to_19", "deaths_20_to_39", "deaths_40_to_59", "deaths_60_to_79", "deaths_80", "total_patients_in_ac_type_one", "covid_patients_in_ac_type_one", "hdu_itu_covid", "estimated_admissions", "deaths_nhs_staff_verified", "deaths_nhs_staff_awaiting", "all_beds_covid_positive", "hdu_itu_non_covid", "hdu_itu_unoccupied", "ga_covid", "ga_unoccupied", "ga_non_covid", "absent_doctors_ac_type_one", "absent_doctors_covid_ac_type_one", "absent_nurses_ac_type_one", "absent_nurses_covid_ac_type_one", "absent_covid_ac_type_one", "absent_total_ac_type_one", "estimated_admissions_automated", "new_community_admissions", "new_community_admissions_7_lag", "new_cases", "estimated_admissions_care_home", "f_date"], transformation_ctx = "selectfields2"]
+## @return: selectfields2
+## @inputs: [frame = applymapping1]
+selectfields2 = SelectFields.apply(frame = applymapping1, paths = ["estimated_admissions_automated_0_5", "estimated_admissions_automated_6_17", "estimated_admissions_automated_18_64", "estimated_admissions_automated_65_84", "estimated_admissions_automated_85_plus", "estimated_admissions_automated_total", "estimated_admissions_automated_unknown", "covid_patients_unknown", "covid_patients_total", "covid_patients_0_5", "covid_patients_6_17", "covid_patients_18_24", "covid_patients_25_34", "covid_patients_35_44", "covid_patients_45_54", "covid_patients_55_64", "covid_patients_65_74", "covid_patients_75_84", "covid_patients_85_plus", "mv_covid_patients_unknown", "mv_covid_patients_total", "mv_covid_patients_0_5", "mv_covid_patients_6_17", "mv_covid_patients_18_24", "mv_covid_patients_25_34", "mv_covid_patients_35_44", "mv_covid_patients_45_54", "mv_covid_patients_55_64", "mv_covid_patients_65_74", "mv_covid_patients_75_84", "mv_covid_patients_85_plus", "date", "region", "source", "o_covid", "o_non_covid", "o_unoccupied", "o_plus_covid", "o_plus_non_covid", "o_plus_unoccupied", "v_covid", "v_non_covid", "v_unoccupied", "discharges", "admissions", "diagnosed", "deaths", "deaths_0_to_19", "deaths_20_to_39", "deaths_40_to_59", "deaths_60_to_79", "deaths_80", "total_patients_in_ac_type_one", "covid_patients_in_ac_type_one", "hdu_itu_covid", "estimated_admissions", "deaths_nhs_staff_verified", "deaths_nhs_staff_awaiting", "all_beds_covid_positive", "hdu_itu_non_covid", "hdu_itu_unoccupied", "ga_covid", "ga_unoccupied", "ga_non_covid", "absent_doctors_ac_type_one", "absent_doctors_covid_ac_type_one", "absent_nurses_ac_type_one", "absent_nurses_covid_ac_type_one", "absent_covid_ac_type_one", "absent_total_ac_type_one", "estimated_admissions_automated", "new_community_admissions", "new_community_admissions_7_lag", "new_cases", "estimated_admissions_care_home", "f_date"], transformation_ctx = "selectfields2")
+## @type: ResolveChoice
+## @args: [choice = "MATCH_CATALOG", database = "dsi-data-repository", table_name = "api1_nhs_metrics", transformation_ctx = "resolvechoice3"]
+## @return: resolvechoice3
+## @inputs: [frame = selectfields2]
+resolvechoice3 = ResolveChoice.apply(frame = selectfields2, choice = "MATCH_CATALOG", database = "dsi-data-repository", table_name = "api1_nhs_metrics", transformation_ctx = "resolvechoice3")
+## @type: DataSink
+## @args: [database = "dsi-data-repository", table_name = "api00001_nhs_metrics", transformation_ctx = "datasink4"]
+## @return: datasink4
+## @inputs: [frame = resolvechoice3]
+datasink4 = glueContext.write_dynamic_frame.from_catalog(frame = resolvechoice3, database = "dsi-data-repository", table_name = "api1_nhs_metrics", transformation_ctx = "datasink4")
+
+
+val_spark_df=resolvechoice3.toDF()
+
+val_out_spark_df1 = val_spark_df.withColumn('nhs_region_names_good',when(col("region").isin(*nhs_region_names), val_spark_df.region).otherwise("Unknown"))
+
+
+
+logger.info("Create dataframe of errors")
+val_out_spark_errors = val_out_spark_df1.filter(f'nhs_region_names_good="Unknown"')
+
+error_count=(val_out_spark_errors.count())
+logger.info("Errors: {}".format(error_count))
+
+val_out_spark_dyf = DynamicFrame.fromDF(val_out_spark_df1, glueContext, 'val_out_spark_dyf')
+
+if error_count == 0:
+    datasink4 = glueContext.write_dynamic_frame.from_catalog(
+        frame = val_out_spark_dyf,
+        database = args["DATA_REPOSITORY_DATABASE"],
+        table_name = args["TABLE_NAME"],
+        transformation_ctx = "datasink4"
+    )
+    logger.info("Data moved to data repository")
+else:
+    logger.info("Errors found, data not placed in data repository")
+
+
+job.commit()

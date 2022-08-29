@@ -1,0 +1,252 @@
+#!python3
+import argparse
+import json
+import os
+import subprocess
+import sys
+import shlex
+from pathlib import Path
+
+scriptPath = os.path.realpath(os.path.dirname(str(Path(os.path.realpath(__file__)).resolve())) + "/../")
+os.chdir(scriptPath)
+sys.path.append(scriptPath)
+
+env = os.environ
+DEFAULT_ENVIRONMENT = "dev"
+DEFAULT_PROFILE = "default"
+DEFAULT_REGION = "eu-west-2"
+VALID_ENVIRONMENTS = [
+    "dev",
+    "smgm",
+    "stage",
+    "sitcen"
+]
+USE_DOCKER = False
+if 'AWS_REGION' in env:
+    DEFAULT_REGION = env['AWS_REGION']
+if 'AWS_PROFILE' in env:
+    DEFAULT_PROFILE = env['AWS_PROFILE']
+if 'USE_DOCKER' in env and env['USE_DOCKER'].upper() == "TRUE":
+    USE_DOCKER = True
+
+if USE_DOCKER and not os.path.exists("/.dockerenv"):
+    #a wrapper shim to force workflowcli to run inside a container
+    my_parser = argparse.ArgumentParser(add_help=False)
+    my_parser.add_argument('-p',
+                           '--profile',
+                           default=DEFAULT_PROFILE,
+                           help='The AWS Profile to use. Will default to AWS_PROFILE environment variable')
+
+    #when run locally the DSI collab directory passed in is relevant to the local path and when run inside docker it relates to the mounted directory
+
+
+    curr_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    home = os.environ['HOME']
+
+    DEFAULT_DSI_COLLAB_DIR = os.path.abspath(os.path.join(curr_root,"..", "dsi-collab", "src"))
+    if 'DSI_COLLAB_DIR' in env:
+        DEFAULT_DSI_COLLAB_DIR = env['DSI_COLLAB_DIR']
+
+    my_parser.add_argument('-d',
+                           '--dsi-collab-dir',
+                           default=DEFAULT_DSI_COLLAB_DIR,
+                           help="The Path to use for 'dsi-collab'. Inside he container this is the mounted folder.")
+
+    pargs, unknown = my_parser.parse_known_args()
+
+    dsi_root = pargs.dsi_collab_dir
+
+    proj_mount = f"{curr_root}:/workspaces/dsi-infrastructure"
+    aws_mount = f"{home}/.aws:/home/glue_user/.aws"
+    dsi_mount = f"{dsi_root}:/workspaces/dsi-collab/src"
+    docker_pythonpath = "/home/glue_user/spark/python/lib/py4j-0.10.9-src.zip:/home/glue_user/aws-glue-libs/PyGlue.zip:/usr/lib64/python3.7:/home/glue_user/local/lib/python3.7/site-packages:/usr/local/lib64/python3.7/site-packages:/usr/local/lib/python3.7/site-packages:/usr/lib64/python3.7/site-packages:/usr/lib/python3.7/site-packages:/home/glue_user/spark/python:/workspaces/dsi-collab/libs:/workspaces/dsi-collab/src/Shared/libs:/workspaces/dsi-collab/src/SitCen/libs"
+
+    xargs = " ".join(map(shlex.quote, sys.argv[1:]))
+    args = f"docker run -it --rm --name etldev-shell -e \"AWS_REGION={DEFAULT_REGION}\" -e \"AWS_PROFILE={pargs.profile}\" -e \"DISABLE_SSL=true\" -e \"PYTHONPATH={docker_pythonpath}\" -w \"/workspaces/dsi-collab\" -v \"{dsi_mount}\" -v \"{proj_mount}\" -v \"{aws_mount}\" --entrypoint /bin/bash amazon/aws-glue-libs:glue_libs_3.0.0_image_01 -c 'pip3 install boto3; python3 /workspaces/dsi-infrastructure/scripts/workflowcli {xargs}'"
+
+    print("Creating docker container shim...")
+    proc = subprocess.Popen(args, preexec_fn=os.setsid, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True,
+                            encoding='utf-8', errors='replace')
+    while True:
+        realtime_output = proc.stdout.read()
+
+        if realtime_output == '' and proc.poll() is not None:
+            break
+
+        if realtime_output:
+            sys.stdout.write(realtime_output)
+    sys.exit()
+
+# Entry point for workflow management cli
+from lib.workflow_mgr import WorkflowManager
+
+curr_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+home = os.environ['HOME']
+
+DEFAULT_DSI_COLLAB_DIR = os.path.abspath(os.path.join(curr_root,"..", "dsi-collab", "src"))
+if 'DSI_COLLAB_DIR' in env:
+    DEFAULT_DSI_COLLAB_DIR = env['DSI_COLLAB_DIR']
+
+def main():
+    my_parser = argparse.ArgumentParser()
+    get_parser = argparse.ArgumentParser()
+
+    sub_parsers = my_parser.add_subparsers(dest='command')
+    list_parser = sub_parsers.add_parser('list')
+    list_remote_parser = sub_parsers.add_parser('list-remote')
+    get_parser = sub_parsers.add_parser('get')
+
+    get_parser.add_argument('workflow', help='Name of the workflow to retrieve')
+
+    update_parser = sub_parsers.add_parser('update')
+    update_parser.add_argument('workflow', help='Name of the workflow to update')
+
+    create_parser = sub_parsers.add_parser('create')
+    create_parser.add_argument('workflow', help='Name of the workflow to create')
+
+    delete_parser = sub_parsers.add_parser('delete')
+    delete_parser.add_argument('workflow', help='Name of the workflow to delete')
+
+    blueprint_runs_parser = sub_parsers.add_parser('blueprint-runs')
+
+    blueprint_run_parser = sub_parsers.add_parser('blueprint-run')
+    blueprint_run_parser.add_argument('run_id', help='ID for the blueprint run')
+
+    db_list_parser = sub_parsers.add_parser('list-databases')
+
+    table_list_parser = sub_parsers.add_parser('list-tables')
+    table_list_parser.add_argument('database', help='The AWS Glue Database to get tables for')
+
+    table_del_parser = sub_parsers.add_parser('delete-table')
+    table_del_parser.add_argument('database', help='The AWS Glue Database containing the table to delete')
+    table_del_parser.add_argument('table', help='The AWS Glue Table to delete')
+
+    list_scripts_parser = sub_parsers.add_parser('list-scripts')
+    list_scripts_parser.add_argument('workflow', help='Name of the workflow to list scripts for')
+
+    upload_parser = sub_parsers.add_parser('upload-scripts')
+    upload_parser.add_argument('workflow', help='Name of the workflow to upload scripts for')
+
+    table_del_parser.add_argument('--yes-delete-the-table', action='store_true', help='Delete the table without confirmation')
+
+    run_all_parser = sub_parsers.add_parser('run-all')
+    run_all_parser.add_argument('-t', '--tenant', default=None, help='The tenant to target')
+    run_all_parser.add_argument('--delete', action='store_true', help='Delete the remote artifacts if they exist')
+    run_all_parser.add_argument('--delete_only', action='store_true', help='Delete the remote artifacts if they exist and do NOT recreate')
+
+    my_parser.add_argument('-r',
+                           '--region',
+                           default=DEFAULT_REGION,
+                           help='The AWS Region to use. Will default to AWS_REGION environment variable')
+
+    my_parser.add_argument('-d',
+                           '--dsi-collab-dir',
+                           default=DEFAULT_DSI_COLLAB_DIR,
+                           help="The Path to use for 'dsi-collab'. Inside a container this is the mounted folder.")
+
+    my_parser.add_argument('-p',
+                           '--profile',
+                           default=DEFAULT_PROFILE,
+                           help='The AWS Profile to use. Will default to AWS_PROFILE environment variable')
+
+    my_parser.add_argument('-v',
+                           '--verbose',
+                           action='store_true',
+                           help='Show verbose output')
+
+    my_parser.add_argument('-e',
+                           '--environment',
+                           default=DEFAULT_ENVIRONMENT,
+                           help=f'AWS Environment to run script against. Valid values are: {VALID_ENVIRONMENTS}')
+
+
+    args = my_parser.parse_args()
+
+    os.environ['AWS_PROFILE'] = args.profile
+
+    if args.environment.lower() not in VALID_ENVIRONMENTS:
+        raise Exception(f"{DEFAULT_ENVIRONMENT} is not a valid environment. Use one of {VALID_ENVIRONMENTS}")
+
+    # Execute parse_args()
+    print(args)
+    wf_mgr = WorkflowManager(region=args.region, env=args.environment.lower(), root_path=args.dsi_collab_dir, verbose=args.verbose, profile=args.profile)
+    if args.command == 'list':
+        list = wf_mgr.list()
+        remote = wf_mgr.list_remote()
+        for wf in list:
+            exists_remote = False
+            if wf in remote:
+                exists_remote = True
+            print(f"Workflow: {wf} [Exists Remote: {exists_remote}]")
+    if args.command == 'list-remote':
+        local = wf_mgr.list()
+        list = wf_mgr.list_remote()
+        for wf in list:
+            exists_local = False
+            if wf in local:
+                exists_local = True
+            print(f"Workflow: {wf} [Exists Local: {exists_local}]")
+    if args.command == "get":
+        if args.workflow is None:
+            raise Exception("Workflow not entered")
+        list = wf_mgr.list()
+        if args.workflow not in list:
+            raise Exception("Workflow not found")
+        wf = wf_mgr.get(args.workflow)
+        if args.verbose:
+            print(f"Local workflow object details: {wf.local_obj}")
+            print(f"Remote workflow node details: {wf.nodes}")
+        print(wf)
+        pass
+    if args.command == "update":
+        if args.workflow is None:
+            raise Exception("Workflow not entered")
+        list = wf_mgr.list()
+        if args.workflow not in list:
+            raise Exception("Workflow not found")
+        wf = wf_mgr.update(args.workflow)
+        print(wf)
+    if args.command == "delete":
+        if args.workflow is None:
+            raise Exception("Workflow not entered")
+        list = wf_mgr.list()
+        if args.workflow not in list:
+            raise Exception(f"Workflow not found {args.workflow}")
+        wf = wf_mgr.delete(args.workflow)
+        print(wf)
+    if args.command == "create":
+        print('******************************************************************************')
+        print(f'doing a create with workflow name {args.workflow} and env name {wf_mgr.env}')
+        wf = wf_mgr.create(args.workflow)
+        print(wf)
+    if args.command == "blueprint-runs":
+        wf = wf_mgr.get_blueprint_runs()
+        print(json.dumps(wf, indent=4, sort_keys=True, default=str))
+    if args.command == "blueprint-run":
+        wf = wf_mgr.get_blueprint_run(args.run_id)
+        print(json.dumps(wf, indent=4, sort_keys=True, default=str))
+    if args.command == "list-databases":
+        dbs = wf_mgr.list_databases()
+        for db in dbs:
+            print(db)
+    if args.command == "list-tables":
+        tables = wf_mgr.list_tables(args.database)
+        for table in tables:
+            print(table)
+    if args.command == "delete-table":
+        if not args.yes_delete_the_table:
+            capture = input(f'This will DELETE the table {args.table} from the AWS database {args.database}. To confirm please type the name of the table [{args.table}] and pressing enter: ')
+            if capture.strip() != args.table:
+                print('The table entered was incorrect')
+                sys.exit(1)
+                return
+        wf_mgr.delete_table(args.database, args.table)
+    if args.command == "run-all":
+        do_create = not args.delete_only
+        wf_mgr.run_all(target_tenant=args.tenant, do_delete=args.delete, do_create=do_create)
+
+
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,3 @@
+[submodule "dsi_framework"]
+	path = dsi_framework
+	url = https://github.com/cabinetoffice/dsi-collab-framework.git
